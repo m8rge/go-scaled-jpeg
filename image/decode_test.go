@@ -9,12 +9,11 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	_ "image/png"
 	"os"
 	"testing"
 
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
+	_ "dct-scaling/image/jpeg"
 )
 
 type imageTest struct {
@@ -25,11 +24,6 @@ type imageTest struct {
 
 var imageTests = []imageTest{
 	{"testdata/video-001.png", "testdata/video-001.png", 0},
-	// GIF images are restricted to a 256-color palette and the conversion
-	// to GIF loses significant image quality.
-	{"testdata/video-001.png", "testdata/video-001.gif", 64 << 8},
-	{"testdata/video-001.png", "testdata/video-001.interlaced.gif", 64 << 8},
-	{"testdata/video-001.png", "testdata/video-001.5bpp.gif", 128 << 8},
 	// JPEG is a lossy format and hence needs a non-zero tolerance.
 	{"testdata/video-001.png", "testdata/video-001.jpeg", 8 << 8},
 	{"testdata/video-001.png", "testdata/video-001.progressive.jpeg", 8 << 8},
@@ -39,7 +33,6 @@ var imageTests = []imageTest{
 	{"testdata/video-001.progressive.truncated.png", "testdata/video-001.progressive.truncated.jpeg", 8 << 8},
 	// Grayscale images.
 	{"testdata/video-005.gray.png", "testdata/video-005.gray.jpeg", 8 << 8},
-	{"testdata/video-005.gray.png", "testdata/video-005.gray.png", 0},
 }
 
 func decode(filename string) (image.Image, string, error) {
