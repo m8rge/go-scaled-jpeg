@@ -12,7 +12,7 @@ import (
 	"image/color"
 	"io"
 
-	"dct-scaling/image/internal/imageutil"
+	"dct-scaling/internal/imageutil"
 )
 
 // A FormatError reports that the input is not a valid JPEG.
