@@ -10,9 +10,20 @@ import (
 
 // makeImg allocates and initializes the destination image.
 func (d *decoder) makeImg(mxx, myy int) {
+	if d.dctSizeScaled <= 0 || d.dctSizeScaled > 8 {
+		d.dctSizeScaled = DCTSIZE
+	}
+	scaledWidth := d.width * d.dctSizeScaled / DCTSIZE
+	if scaledWidth <= 0 {
+		scaledWidth = 1
+	}
+	scaledHeight := d.height * d.dctSizeScaled / DCTSIZE
+	if scaledHeight <= 0 {
+		scaledHeight = 1
+	}
 	if d.nComp == 1 {
-		m := image.NewGray(image.Rect(0, 0, 8*mxx, 8*myy))
-		d.img1 = m.SubImage(image.Rect(0, 0, d.width, d.height)).(*image.Gray)
+		m := image.NewGray(image.Rect(0, 0, d.dctSizeScaled*mxx, d.dctSizeScaled*myy))
+		d.img1 = m.SubImage(image.Rect(0, 0, scaledWidth, scaledHeight)).(*image.Gray)
 		return
 	}
 
@@ -37,13 +48,13 @@ func (d *decoder) makeImg(mxx, myy int) {
 	default:
 		panic("unreachable")
 	}
-	m := image.NewYCbCr(image.Rect(0, 0, 8*h0*mxx, 8*v0*myy), subsampleRatio)
-	d.img3 = m.SubImage(image.Rect(0, 0, d.width, d.height)).(*image.YCbCr)
+	m := image.NewYCbCr(image.Rect(0, 0, d.dctSizeScaled*h0*mxx, d.dctSizeScaled*v0*myy), subsampleRatio)
+	d.img3 = m.SubImage(image.Rect(0, 0, scaledWidth, scaledHeight)).(*image.YCbCr)
 
 	if d.nComp == 4 {
 		h3, v3 := d.comp[3].h, d.comp[3].v
-		d.blackPix = make([]byte, 8*h3*mxx*8*v3*myy)
-		d.blackStride = 8 * h3 * mxx
+		d.blackPix = make([]byte, d.dctSizeScaled*h3*mxx*d.dctSizeScaled*v3*myy)
+		d.blackStride = d.dctSizeScaled * h3 * mxx
 	}
 }
 
@@ -465,40 +476,49 @@ func (d *decoder) reconstructProgressiveImage() error {
 // to the image.
 func (d *decoder) reconstructBlock(b *block, bx, by, compIndex int) error {
 	qt := &d.quant[d.comp[compIndex].tq]
-	for zig := 0; zig < blockSize; zig++ {
-		b[unzig[zig]] *= qt[zig]
+	switch d.dctSizeScaled {
+	case 7:
+		jpeg_idct_7x7(b, qt)
+	case 6:
+		jpeg_idct_6x6(b, qt)
+	case 5:
+		jpeg_idct_5x5(b, qt)
+	case 4:
+		jpeg_idct_4x4(b, qt)
+	case 3:
+		jpeg_idct_3x3(b, qt)
+	case 2:
+		jpeg_idct_2x2(b, qt)
+	case 1:
+		jpeg_idct_1x1(b, qt)
+	default:
+		d.dctSizeScaled = DCTSIZE
+		idct_slow(b, qt)
 	}
-	idct(b)
 	dst, stride := []byte(nil), 0
 	if d.nComp == 1 {
-		dst, stride = d.img1.Pix[8*(by*d.img1.Stride+bx):], d.img1.Stride
+		dst, stride = d.img1.Pix[d.dctSizeScaled*(by*d.img1.Stride+bx):], d.img1.Stride
 	} else {
 		switch compIndex {
 		case 0:
-			dst, stride = d.img3.Y[8*(by*d.img3.YStride+bx):], d.img3.YStride
+			dst, stride = d.img3.Y[d.dctSizeScaled*(by*d.img3.YStride+bx):], d.img3.YStride
 		case 1:
-			dst, stride = d.img3.Cb[8*(by*d.img3.CStride+bx):], d.img3.CStride
+			dst, stride = d.img3.Cb[d.dctSizeScaled*(by*d.img3.CStride+bx):], d.img3.CStride
 		case 2:
-			dst, stride = d.img3.Cr[8*(by*d.img3.CStride+bx):], d.img3.CStride
+			dst, stride = d.img3.Cr[d.dctSizeScaled*(by*d.img3.CStride+bx):], d.img3.CStride
 		case 3:
-			dst, stride = d.blackPix[8*(by*d.blackStride+bx):], d.blackStride
+			dst, stride = d.blackPix[d.dctSizeScaled*(by*d.blackStride+bx):], d.blackStride
 		default:
 			return UnsupportedError("too many components")
 		}
 	}
-	// Level shift by +128, clip to [0, 255], and write to dst.
-	for y := 0; y < 8; y++ {
-		y8 := y * 8
+
+	// write to dst.
+	for y := 0; y < d.dctSizeScaled; y++ {
+		yRow := y * d.dctSizeScaled
 		yStride := y * stride
-		for x := 0; x < 8; x++ {
-			c := b[y8+x]
-			if c < -128 {
-				c = 0
-			} else if c > 127 {
-				c = 255
-			} else {
-				c += 128
-			}
+		for x := 0; x < d.dctSizeScaled; x++ {
+			c := b[yRow+x]
 			dst[yStride+x] = uint8(c)
 		}
 	}

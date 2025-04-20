@@ -9,7 +9,6 @@ package jpeg
 
 import (
 	"image"
-	"image/color"
 	"io"
 
 	"dct-scaling/internal/imageutil"
@@ -119,6 +118,7 @@ type decoder struct {
 		nUnreadable int
 	}
 	width, height int
+	dctSizeScaled int
 
 	img1        *image.Gray
 	img3        *image.YCbCr
@@ -768,46 +768,10 @@ func (d *decoder) convertToRGB() (image.Image, error) {
 	return img, nil
 }
 
-// Decode reads a JPEG image from r and returns it as an [image.Image].
-func Decode(r io.Reader) (image.Image, error) {
-	var d decoder
+// DecodeScaled reads a JPEG image from r and returns it as an [image.Image].
+func DecodeScaled(r io.Reader, DCTSizeScaled int) (image.Image, error) {
+	d := decoder{
+		dctSizeScaled: DCTSizeScaled,
+	}
 	return d.decode(r, false)
-}
-
-// DecodeConfig returns the color model and dimensions of a JPEG image without
-// decoding the entire image.
-func DecodeConfig(r io.Reader) (image.Config, error) {
-	var d decoder
-	if _, err := d.decode(r, true); err != nil {
-		return image.Config{}, err
-	}
-	switch d.nComp {
-	case 1:
-		return image.Config{
-			ColorModel: color.GrayModel,
-			Width:      d.width,
-			Height:     d.height,
-		}, nil
-	case 3:
-		cm := color.YCbCrModel
-		if d.isRGB() {
-			cm = color.RGBAModel
-		}
-		return image.Config{
-			ColorModel: cm,
-			Width:      d.width,
-			Height:     d.height,
-		}, nil
-	case 4:
-		return image.Config{
-			ColorModel: color.CMYKModel,
-			Width:      d.width,
-			Height:     d.height,
-		}, nil
-	}
-	return image.Config{}, FormatError("missing SOF marker")
-}
-
-func init() {
-	image.RegisterFormat("jpeg", "\xff\xd8", Decode, DecodeConfig)
 }

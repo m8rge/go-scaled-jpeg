@@ -7,9 +7,12 @@ package jpeg
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"math/rand"
 	"os"
@@ -117,24 +120,28 @@ func (r *eofReader) Read(b []byte) (n int, err error) {
 }
 
 func TestDecodeEOF(t *testing.T) {
-	// Check that if reader returns final data and EOF at same time, jpeg handles it.
-	data, err := os.ReadFile("../testdata/video-001.jpeg")
-	if err != nil {
-		t.Fatal(err)
-	}
+	for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
+		t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
+			// Check that if reader returns final data and EOF at same time, jpeg handles it.
+			data, err := os.ReadFile("../testdata/video-001.jpeg")
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	n := len(data)
-	for i := 0; i < n; {
-		r := &eofReader{data[:n-i], data[n-i:], -1}
-		_, err := Decode(r)
-		if err != nil {
-			t.Errorf("Decode with Read() = %d, EOF: %v", r.lenAtEOF, err)
-		}
-		if i == 0 {
-			i = 1
-		} else {
-			i *= 2
-		}
+			n := len(data)
+			for i := 0; i < n; {
+				r := &eofReader{data[:n-i], data[n-i:], -1}
+				_, err := DecodeScaled(r, dctScaledSize)
+				if err != nil {
+					t.Errorf("Decode with Read() = %d, EOF: %v", r.lenAtEOF, err)
+				}
+				if i == 0 {
+					i = 1
+				} else {
+					i *= 2
+				}
+			}
+		})
 	}
 }
 
@@ -179,32 +186,36 @@ func check(bounds image.Rectangle, pix0, pix1 []byte, stride0, stride1 int) erro
 func pixString(pix []byte, stride, x, y int) string {
 	s := &strings.Builder{}
 	for j := 0; j < 8; j++ {
-		fmt.Fprintf(s, "\t")
+		_, _ = fmt.Fprintf(s, "\t")
 		for i := 0; i < 8; i++ {
-			fmt.Fprintf(s, "%02x ", pix[(y+j)*stride+(x+i)])
+			_, _ = fmt.Fprintf(s, "%02x ", pix[(y+j)*stride+(x+i)])
 		}
-		fmt.Fprintf(s, "\n")
+		_, _ = fmt.Fprintf(s, "\n")
 	}
 	return s.String()
 }
 
 func TestTruncatedSOSDataDoesntPanic(t *testing.T) {
-	b, err := os.ReadFile("../testdata/video-005.gray.q50.jpeg")
-	if err != nil {
-		t.Fatal(err)
-	}
-	sosMarker := []byte{0xff, 0xda}
-	i := bytes.Index(b, sosMarker)
-	if i < 0 {
-		t.Fatal("SOS marker not found")
-	}
-	i += len(sosMarker)
-	j := i + 10
-	if j > len(b) {
-		j = len(b)
-	}
-	for ; i < j; i++ {
-		Decode(bytes.NewReader(b[:i]))
+	for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
+		t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
+			b, err := os.ReadFile("../testdata/video-005.gray.q50.jpeg")
+			if err != nil {
+				t.Fatal(err)
+			}
+			sosMarker := []byte{0xff, 0xda}
+			i := bytes.Index(b, sosMarker)
+			if i < 0 {
+				t.Fatal("SOS marker not found")
+			}
+			i += len(sosMarker)
+			j := i + 10
+			if j > len(b) {
+				j = len(b)
+			}
+			for ; i < j; i++ {
+				_, _ = DecodeScaled(bytes.NewReader(b[:i]), dctScaledSize)
+			}
+		})
 	}
 }
 
@@ -249,15 +260,19 @@ func TestLargeImageWithShortData(t *testing.T) {
 		"\xde\xaf\xa4\xf0\xca\x9f\x24\xa8\xdf\x46\xa8\x24\x84\x96\xe3\x77" +
 		"\xf9\x2e\xe0\x0a\x62\x7f\xdf\xd9"
 
-	timer := time.AfterFunc(30*time.Second, func() {
-		debug.SetTraceback("all")
-		panic("TestLargeImageWithShortData stuck in Decode")
-	})
-	defer timer.Stop()
+	for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
+		t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
+			timer := time.AfterFunc(30*time.Second, func() {
+				debug.SetTraceback("all")
+				panic("TestLargeImageWithShortData stuck in Decode")
+			})
+			defer timer.Stop()
 
-	_, err := Decode(strings.NewReader(input))
-	if err == nil {
-		t.Fatalf("got nil error, want non-nil")
+			_, err := DecodeScaled(strings.NewReader(input), dctScaledSize)
+			if err == nil {
+				t.Fatalf("got nil error, want non-nil")
+			}
+		})
 	}
 }
 
@@ -425,8 +440,12 @@ Sqm7JH//2Q==
 	if err != nil {
 		t.Fatalf("base64 DecodeString: %v", err)
 	}
-	if _, err = Decode(bytes.NewReader(data)); err != nil {
-		t.Fatalf("Decode: %v", err)
+	for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
+		t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
+			if _, err = DecodeScaled(bytes.NewReader(data), dctScaledSize); err != nil {
+				t.Fatalf("Decode: %v", err)
+			}
+		})
 	}
 }
 
@@ -435,7 +454,7 @@ func TestExtraneousData(t *testing.T) {
 	src := image.NewRGBA(image.Rect(0, 0, 1, 1))
 	src.Set(0, 0, color.RGBA{0xff, 0x00, 0x00, 0xff})
 	buf := new(bytes.Buffer)
-	if err := Encode(buf, src, nil); err != nil {
+	if err := jpeg.Encode(buf, src, nil); err != nil {
 		t.Fatalf("encode: %v", err)
 	}
 	enc := buf.String()
@@ -451,42 +470,47 @@ func TestExtraneousData(t *testing.T) {
 	if s := enc[len(enc)-64:]; !strings.Contains(s, "\xff\xda") {
 		t.Fatalf("encoded JPEG does not contain a SOS marker (ff da) near the end: % x", s)
 	}
-	// Test that adding some random junk between the SOS marker and the
-	// EOI marker does not affect the decoding.
-	rnd := rand.New(rand.NewSource(1))
-	for i, nerr := 0, 0; i < 1000 && nerr < 10; i++ {
-		buf.Reset()
-		// Write all but the trailing "\xff\xd9" EOI marker.
-		buf.WriteString(enc[:len(enc)-2])
-		// Write some random extraneous data.
-		for n := rnd.Intn(10); n > 0; n-- {
-			if x := byte(rnd.Intn(256)); x != 0xff {
-				buf.WriteByte(x)
-			} else {
-				// The JPEG format escapes a SOS 0xff data byte as "\xff\x00".
-				buf.WriteString("\xff\x00")
-			}
-		}
-		// Write the "\xff\xd9" EOI marker.
-		buf.WriteString("\xff\xd9")
 
-		// Check that we can still decode the resultant image.
-		got, err := Decode(buf)
-		if err != nil {
-			t.Errorf("could not decode image #%d: %v", i, err)
-			nerr++
-			continue
-		}
-		if got.Bounds() != src.Bounds() {
-			t.Errorf("image #%d, bounds differ: %v and %v", i, got.Bounds(), src.Bounds())
-			nerr++
-			continue
-		}
-		if averageDelta(got, src) > 2<<8 {
-			t.Errorf("image #%d changed too much after a round trip", i)
-			nerr++
-			continue
-		}
+	for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
+		t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
+			// Test that adding some random junk between the SOS marker and the
+			// EOI marker does not affect the decoding.
+			rnd := rand.New(rand.NewSource(1))
+			for i, nerr := 0, 0; i < 1000 && nerr < 10; i++ {
+				buf.Reset()
+				// Write all but the trailing "\xff\xd9" EOI marker.
+				buf.WriteString(enc[:len(enc)-2])
+				// Write some random extraneous data.
+				for n := rnd.Intn(10); n > 0; n-- {
+					if x := byte(rnd.Intn(256)); x != 0xff {
+						buf.WriteByte(x)
+					} else {
+						// The JPEG format escapes a SOS 0xff data byte as "\xff\x00".
+						buf.WriteString("\xff\x00")
+					}
+				}
+				// Write the "\xff\xd9" EOI marker.
+				buf.WriteString("\xff\xd9")
+
+				// Check that we can still decode the resultant image.
+				got, err := DecodeScaled(buf, dctScaledSize)
+				if err != nil {
+					t.Errorf("could not decode image #%d: %v", i, err)
+					nerr++
+					continue
+				}
+				if got.Bounds() != src.Bounds() {
+					t.Errorf("image #%d, bounds differ: %v and %v", i, got.Bounds(), src.Bounds())
+					nerr++
+					continue
+				}
+				if averageDelta(got, src) > 2<<8 {
+					t.Errorf("image #%d changed too much after a round trip", i)
+					nerr++
+					continue
+				}
+			}
+		})
 	}
 }
 
@@ -498,9 +522,13 @@ func TestIssue56724(t *testing.T) {
 
 	b = b[:24] // truncate image data
 
-	_, err = Decode(bytes.NewReader(b))
-	if err != io.ErrUnexpectedEOF {
-		t.Errorf("got: %v, want: %v", err, io.ErrUnexpectedEOF)
+	for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
+		t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
+			_, err = DecodeScaled(bytes.NewReader(b), dctScaledSize)
+			if !errors.Is(err, io.ErrUnexpectedEOF) {
+				t.Errorf("got: %v, want: %v", err, io.ErrUnexpectedEOF)
+			}
+		})
 	}
 }
 
@@ -537,11 +565,15 @@ func TestBadRestartMarker(t *testing.T) {
 		data = append(data, prefix...)
 		data = append(data, infix...)
 		data = append(data, suffix...)
-		_, err := Decode(bytes.NewReader(data))
-		got := err == nil
+		for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
+			t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
+				_, err := DecodeScaled(bytes.NewReader(data), dctScaledSize)
+				got := err == nil
 
-		if got != want {
-			t.Errorf("%q: got %v, want %v", tc, got, want)
+				if got != want {
+					t.Errorf("%q: got %v, want %v", tc, got, want)
+				}
+			})
 		}
 	}
 }
@@ -551,15 +583,19 @@ func benchmarkDecode(b *testing.B, filename string) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	cfg, err := DecodeConfig(bytes.NewReader(data))
+	cfg, err := jpeg.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
 		b.Fatal(err)
 	}
-	b.SetBytes(int64(cfg.Width * cfg.Height * 4))
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		Decode(bytes.NewReader(data))
+	for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
+		b.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(b *testing.B) {
+			b.SetBytes(int64(cfg.Width * cfg.Height * 4 * DCTSIZE / dctScaledSize))
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, _ = DecodeScaled(bytes.NewReader(data), dctScaledSize)
+			}
+		})
 	}
 }
 
@@ -569,4 +605,32 @@ func BenchmarkDecodeBaseline(b *testing.B) {
 
 func BenchmarkDecodeProgressive(b *testing.B) {
 	benchmarkDecode(b, "../testdata/video-001.progressive.jpeg")
+}
+
+// averageDelta returns the average delta in RGB space. The two images must
+// have the same bounds.
+func averageDelta(m0, m1 image.Image) int64 {
+	b := m0.Bounds()
+	var sum, n int64
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			c0 := m0.At(x, y)
+			c1 := m1.At(x, y)
+			r0, g0, b0, _ := c0.RGBA()
+			r1, g1, b1, _ := c1.RGBA()
+			sum += delta(r0, r1)
+			sum += delta(g0, g1)
+			sum += delta(b0, b1)
+			n += 3
+		}
+	}
+	return sum / n
+}
+
+func delta(u0, u1 uint32) int64 {
+	d := int64(u0) - int64(u1)
+	if d < 0 {
+		return -d
+	}
+	return d
 }

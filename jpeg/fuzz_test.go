@@ -6,7 +6,9 @@ package jpeg
 
 import (
 	"bytes"
+	"fmt"
 	"image"
+	"image/jpeg"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,23 +47,36 @@ func FuzzDecode(f *testing.F) {
 		if err != nil || typ != "jpeg" {
 			return
 		}
-		for q := 1; q <= 100; q++ {
-			var w bytes.Buffer
-			err := Encode(&w, img, &Options{Quality: q})
-			if err != nil {
-				t.Errorf("failed to encode valid image: %s", err)
-				continue
-			}
-			img1, err := Decode(&w)
-			if err != nil {
-				t.Errorf("failed to decode roundtripped image: %s", err)
-				continue
-			}
-			got := img1.Bounds()
-			want := img.Bounds()
-			if !got.Eq(want) {
-				t.Errorf("roundtripped image bounds have changed, got: %s, want: %s", got, want)
-			}
+
+		for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
+			t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
+				for q := 1; q <= 100; q++ {
+					var w bytes.Buffer
+					err := jpeg.Encode(&w, img, &jpeg.Options{Quality: q})
+					if err != nil {
+						t.Errorf("failed to encode valid image: %s", err)
+						continue
+					}
+					img1, err := DecodeScaled(&w, dctScaledSize)
+					if err != nil {
+						t.Errorf("failed to decode roundtripped image: %s", err)
+						continue
+					}
+					got := img1.Bounds()
+					want := img.Bounds()
+					want.Max.X *= dctScaledSize / DCTSIZE
+					if want.Max.X <= 0 {
+						want.Max.X = 1
+					}
+					want.Max.Y *= dctScaledSize / DCTSIZE
+					if want.Max.Y <= 0 {
+						want.Max.Y = 1
+					}
+					if dctScaledSize == DCTSIZE && !got.Eq(want) {
+						t.Errorf("image bounds wrong, got: %s, want: %s", got, want)
+					}
+				}
+			})
 		}
 	})
 }
