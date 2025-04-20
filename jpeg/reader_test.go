@@ -38,52 +38,77 @@ func TestDecodeProgressive(t *testing.T) {
 		"../testdata/video-005.gray.q50.2x2",
 		"../testdata/video-001.separate.dc.progression",
 	}
-	for _, tc := range testCases {
-		m0, err := decodeFile(tc + ".jpeg")
-		if err != nil {
-			t.Errorf("%s: %v", tc+".jpeg", err)
-			continue
-		}
-		m1, err := decodeFile(tc + ".progressive.jpeg")
-		if err != nil {
-			t.Errorf("%s: %v", tc+".progressive.jpeg", err)
-			continue
-		}
-		if m0.Bounds() != m1.Bounds() {
-			t.Errorf("%s: bounds differ: %v and %v", tc, m0.Bounds(), m1.Bounds())
-			continue
-		}
-		// All of the video-*.jpeg files are 150x103.
-		if m0.Bounds() != image.Rect(0, 0, 150, 103) {
-			t.Errorf("%s: bad bounds: %v", tc, m0.Bounds())
-			continue
-		}
+	for dctScaledSize := DCTSIZE; dctScaledSize > 0; dctScaledSize-- {
+		t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
+			// All of the video-*.jpeg files are 150x103.
+			want := image.Rect(0, 0, 150, 103)
+			switch dctScaledSize {
+			case 7:
+				want = image.Rect(0, 0, 131, 90)
+			case 6:
+				want = image.Rect(0, 0, 112, 77)
+			case 5:
+				want = image.Rect(0, 0, 93, 64)
+			case 4:
+				want = image.Rect(0, 0, 75, 51)
+			case 3:
+				want = image.Rect(0, 0, 56, 38)
+			case 2:
+				want = image.Rect(0, 0, 37, 25)
+			case 1:
+				want = image.Rect(0, 0, 18, 12)
+			}
+			for _, tc := range testCases {
+				testDecodeProgressive(t, tc, dctScaledSize, want)
+			}
+		})
+	}
+}
 
-		switch m0 := m0.(type) {
-		case *image.YCbCr:
-			m1 := m1.(*image.YCbCr)
-			if err := check(m0.Bounds(), m0.Y, m1.Y, m0.YStride, m1.YStride); err != nil {
-				t.Errorf("%s (Y): %v", tc, err)
-				continue
-			}
-			if err := check(m0.Bounds(), m0.Cb, m1.Cb, m0.CStride, m1.CStride); err != nil {
-				t.Errorf("%s (Cb): %v", tc, err)
-				continue
-			}
-			if err := check(m0.Bounds(), m0.Cr, m1.Cr, m0.CStride, m1.CStride); err != nil {
-				t.Errorf("%s (Cr): %v", tc, err)
-				continue
-			}
-		case *image.Gray:
-			m1 := m1.(*image.Gray)
-			if err := check(m0.Bounds(), m0.Pix, m1.Pix, m0.Stride, m1.Stride); err != nil {
-				t.Errorf("%s: %v", tc, err)
-				continue
-			}
-		default:
-			t.Errorf("%s: unexpected image type %T", tc, m0)
-			continue
+func testDecodeProgressive(t *testing.T, tc string, dctScaledSize int, expectedRect image.Rectangle) {
+	m0, err := decodeFile(tc+".jpeg", dctScaledSize)
+	if err != nil {
+		t.Errorf("%s: %v", tc+".jpeg", err)
+		return
+	}
+	m1, err := decodeFile(tc+".progressive.jpeg", dctScaledSize)
+	if err != nil {
+		t.Errorf("%s: %v", tc+".progressive.jpeg", err)
+		return
+	}
+	if m0.Bounds() != m1.Bounds() {
+		t.Errorf("%s: bounds differ: %v and %v", tc, m0.Bounds(), m1.Bounds())
+		return
+	}
+	if m0.Bounds() != expectedRect {
+		t.Errorf("%s: bad bounds: %v", tc, m0.Bounds())
+		return
+	}
+
+	switch m0 := m0.(type) {
+	case *image.YCbCr:
+		m1 := m1.(*image.YCbCr)
+		if err := check(m0.Bounds(), m0.Y, m1.Y, m0.YStride, m1.YStride, dctScaledSize); err != nil {
+			t.Errorf("%s (Y): %v", tc, err)
+			return
 		}
+		if err := check(m0.Bounds(), m0.Cb, m1.Cb, m0.CStride, m1.CStride, dctScaledSize); err != nil {
+			t.Errorf("%s (Cb): %v", tc, err)
+			return
+		}
+		if err := check(m0.Bounds(), m0.Cr, m1.Cr, m0.CStride, m1.CStride, dctScaledSize); err != nil {
+			t.Errorf("%s (Cr): %v", tc, err)
+			return
+		}
+	case *image.Gray:
+		m1 := m1.(*image.Gray)
+		if err := check(m0.Bounds(), m0.Pix, m1.Pix, m0.Stride, m1.Stride, dctScaledSize); err != nil {
+			t.Errorf("%s: %v", tc, err)
+			return
+		}
+	default:
+		t.Errorf("%s: unexpected image type %T", tc, m0)
+		return
 	}
 }
 
@@ -93,7 +118,7 @@ func decodeFile(filename string) (image.Image, error) {
 		return nil, err
 	}
 	defer f.Close()
-	return Decode(f)
+	return DecodeScaled(f, dctSize)
 }
 
 type eofReader struct {
@@ -150,16 +175,16 @@ func testDecodeEOF(t *testing.T, dctScaledSize int) {
 }
 
 // check checks that the two pix data are equal, within the given bounds.
-func check(bounds image.Rectangle, pix0, pix1 []byte, stride0, stride1 int) error {
-	if stride0 <= 0 || stride0%8 != 0 {
-		return fmt.Errorf("bad stride %d", stride0)
+func check(bounds image.Rectangle, pix0, pix1 []byte, stride0, stride1, dctScaledSize int) error {
+	if stride0 <= 0 || stride0%dctScaledSize != 0 {
+		return fmt.Errorf("bad stride %d, must be multiplier of %d", stride0, dctScaledSize)
 	}
-	if stride1 <= 0 || stride1%8 != 0 {
-		return fmt.Errorf("bad stride %d", stride1)
+	if stride1 <= 0 || stride1%dctScaledSize != 0 {
+		return fmt.Errorf("bad stride %d, must be multiplier of %d", stride1, dctScaledSize)
 	}
 	// Compare the two pix data, one 8x8 block at a time.
-	for y := 0; y < len(pix0)/stride0 && y < len(pix1)/stride1; y += 8 {
-		for x := 0; x < stride0 && x < stride1; x += 8 {
+	for y := 0; y < len(pix0)/stride0 && y < len(pix1)/stride1; y += dctScaledSize {
+		for x := 0; x < stride0 && x < stride1; x += dctScaledSize {
 			if x >= bounds.Max.X || y >= bounds.Max.Y {
 				// We don't care if the two pix data differ if the 8x8 block is
 				// entirely outside of the image's bounds. For example, this can
@@ -170,14 +195,14 @@ func check(bounds image.Rectangle, pix0, pix1 []byte, stride0, stride1 int) erro
 				continue
 			}
 
-			for j := 0; j < 8; j++ {
-				for i := 0; i < 8; i++ {
+			for j := 0; j < dctScaledSize; j++ {
+				for i := 0; i < dctScaledSize; i++ {
 					index0 := (y+j)*stride0 + (x + i)
 					index1 := (y+j)*stride1 + (x + i)
 					if pix0[index0] != pix1[index1] {
 						return fmt.Errorf("blocks at (%d, %d) differ:\n%sand\n%s", x, y,
-							pixString(pix0, stride0, x, y),
-							pixString(pix1, stride1, x, y),
+							pixString(pix0, stride0, x, y, dctScaledSize),
+							pixString(pix1, stride1, x, y, dctScaledSize),
 						)
 					}
 				}
@@ -187,11 +212,11 @@ func check(bounds image.Rectangle, pix0, pix1 []byte, stride0, stride1 int) erro
 	return nil
 }
 
-func pixString(pix []byte, stride, x, y int) string {
+func pixString(pix []byte, stride, x, y, dctScaledSize int) string {
 	s := &strings.Builder{}
-	for j := 0; j < 8; j++ {
+	for j := 0; j < dctScaledSize; j++ {
 		_, _ = fmt.Fprintf(s, "\t")
-		for i := 0; i < 8; i++ {
+		for i := 0; i < dctScaledSize; i++ {
 			_, _ = fmt.Fprintf(s, "%02x ", pix[(y+j)*stride+(x+i)])
 		}
 		_, _ = fmt.Fprintf(s, "\n")
