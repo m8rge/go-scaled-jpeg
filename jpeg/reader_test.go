@@ -122,26 +122,30 @@ func (r *eofReader) Read(b []byte) (n int, err error) {
 func TestDecodeEOF(t *testing.T) {
 	for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
 		t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
-			// Check that if reader returns final data and EOF at same time, jpeg handles it.
-			data, err := os.ReadFile("../testdata/video-001.jpeg")
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			n := len(data)
-			for i := 0; i < n; {
-				r := &eofReader{data[:n-i], data[n-i:], -1}
-				_, err := DecodeScaled(r, dctScaledSize)
-				if err != nil {
-					t.Errorf("Decode with Read() = %d, EOF: %v", r.lenAtEOF, err)
-				}
-				if i == 0 {
-					i = 1
-				} else {
-					i *= 2
-				}
-			}
+			testDecodeEOF(t, dctScaledSize)
 		})
+	}
+}
+
+func testDecodeEOF(t *testing.T, dctScaledSize int) {
+	// Check that if reader returns final data and EOF at same time, jpeg handles it.
+	data, err := os.ReadFile("../testdata/video-001.jpeg")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n := len(data)
+	for i := 0; i < n; {
+		r := &eofReader{data[:n-i], data[n-i:], -1}
+		_, err := DecodeScaled(r, dctScaledSize)
+		if err != nil {
+			t.Errorf("Decode with Read() = %d, EOF: %v", r.lenAtEOF, err)
+		}
+		if i == 0 {
+			i = 1
+		} else {
+			i *= 2
+		}
 	}
 }
 
@@ -198,24 +202,28 @@ func pixString(pix []byte, stride, x, y int) string {
 func TestTruncatedSOSDataDoesntPanic(t *testing.T) {
 	for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
 		t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
-			b, err := os.ReadFile("../testdata/video-005.gray.q50.jpeg")
-			if err != nil {
-				t.Fatal(err)
-			}
-			sosMarker := []byte{0xff, 0xda}
-			i := bytes.Index(b, sosMarker)
-			if i < 0 {
-				t.Fatal("SOS marker not found")
-			}
-			i += len(sosMarker)
-			j := i + 10
-			if j > len(b) {
-				j = len(b)
-			}
-			for ; i < j; i++ {
-				_, _ = DecodeScaled(bytes.NewReader(b[:i]), dctScaledSize)
-			}
+			testTruncatedSOSDataDoesntPanic(t, dctScaledSize)
 		})
+	}
+}
+
+func testTruncatedSOSDataDoesntPanic(t *testing.T, dctScaledSize int) {
+	b, err := os.ReadFile("../testdata/video-005.gray.q50.jpeg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sosMarker := []byte{0xff, 0xda}
+	i := bytes.Index(b, sosMarker)
+	if i < 0 {
+		t.Fatal("SOS marker not found")
+	}
+	i += len(sosMarker)
+	j := i + 10
+	if j > len(b) {
+		j = len(b)
+	}
+	for ; i < j; i++ {
+		_, _ = DecodeScaled(bytes.NewReader(b[:i]), dctScaledSize)
 	}
 }
 
