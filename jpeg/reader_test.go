@@ -12,7 +12,6 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
-	"image/png"
 	"io"
 	"math/rand"
 	"os"
@@ -112,7 +111,7 @@ func testDecodeProgressive(t *testing.T, tc string, dctScaledSize int, expectedR
 	}
 }
 
-func decodeFile(filename string) (image.Image, error) {
+func decodeFile(filename string, dctSize int) (image.Image, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, err

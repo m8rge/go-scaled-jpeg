@@ -9,39 +9,116 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	_ "image/jpeg"
 	_ "image/png"
 	"os"
+	"path/filepath"
 	"testing"
 
-	_ "dct-scaling/jpeg"
+	"dct-scaling/jpeg"
 )
 
 type imageTest struct {
 	goldenFilename string
 	filename       string
-	tolerance      int
 }
 
 var imageTests = []imageTest{
-	{"testdata/video-001.png", "testdata/video-001.png", 0},
 	// JPEG is a lossy format and hence needs a non-zero tolerance.
-	{"testdata/video-001.png", "testdata/video-001.jpeg", 8 << 8},
-	{"testdata/video-001.png", "testdata/video-001.progressive.jpeg", 8 << 8},
-	{"testdata/video-001.221212.png", "testdata/video-001.221212.jpeg", 8 << 8},
-	{"testdata/video-001.cmyk.png", "testdata/video-001.cmyk.jpeg", 8 << 8},
-	{"testdata/video-001.rgb.png", "testdata/video-001.rgb.jpeg", 8 << 8},
-	{"testdata/video-001.progressive.truncated.png", "testdata/video-001.progressive.truncated.jpeg", 8 << 8},
+	{"testdata/video-001", "testdata/video-001.jpeg"},
+	{"testdata/video-001", "testdata/video-001.progressive.jpeg"},
+	{"testdata/video-001.221212", "testdata/video-001.221212.jpeg"},
+	{"testdata/video-001.cmyk", "testdata/video-001.cmyk.jpeg"},
+	{"testdata/video-001.rgb", "testdata/video-001.rgb.jpeg"},
+	{"testdata/video-001.progressive.truncated", "testdata/video-001.progressive.truncated.jpeg"},
+	{"testdata/video-001.q50.410", "testdata/video-001.q50.410.progressive.jpeg"},
+	{"testdata/video-001.q50.411", "testdata/video-001.q50.411.progressive.jpeg"},
+	{"testdata/video-001.q50.420", "testdata/video-001.q50.420.progressive.jpeg"},
+	{"testdata/video-001.q50.422", "testdata/video-001.q50.422.progressive.jpeg"},
+	{"testdata/video-001.q50.440", "testdata/video-001.q50.440.progressive.jpeg"},
+	{"testdata/video-001.q50.444", "testdata/video-001.q50.444.progressive.jpeg"},
+	{"testdata/video-001.q50.410", "testdata/video-001.q50.410.jpeg"},
+	{"testdata/video-001.q50.411", "testdata/video-001.q50.411.jpeg"},
+	{"testdata/video-001.q50.420", "testdata/video-001.q50.420.jpeg"},
+	{"testdata/video-001.q50.422", "testdata/video-001.q50.422.jpeg"},
+	{"testdata/video-001.q50.440", "testdata/video-001.q50.440.jpeg"},
+	{"testdata/video-001.q50.444", "testdata/video-001.q50.444.jpeg"},
+	{"testdata/video-001.restart2", "testdata/video-001.restart2.jpeg"},
+	{"testdata/video-001.separate.dc.progression", "testdata/video-001.separate.dc.progression.progressive.jpeg"},
+	{"testdata/video-001.separate.dc.progression", "testdata/video-001.separate.dc.progression.jpeg"},
 	// Grayscale images.
-	{"testdata/video-005.gray.png", "testdata/video-005.gray.jpeg", 8 << 8},
+	{"testdata/video-005.gray", "testdata/video-005.gray.jpeg"},
+	{"testdata/video-005.gray.q50", "testdata/video-005.gray.q50.progressive.jpeg"},
+	{"testdata/video-005.gray.q50.2x2", "testdata/video-005.gray.q50.2x2.progressive.jpeg"},
+	{"testdata/video-005.gray.q50", "testdata/video-005.gray.q50.jpeg"},
+	{"testdata/video-005.gray.q50.2x2", "testdata/video-005.gray.q50.2x2.jpeg"},
 }
 
-func decode(filename string) (image.Image, string, error) {
+func TestDecode(t *testing.T) {
+	for _, it := range imageTests {
+	loop:
+		for dctSizeScaled := jpeg.DCTSIZE; dctSizeScaled > 0; dctSizeScaled-- {
+			m, err := decodeJpegScaled(it.filename, dctSizeScaled)
+			if err != nil {
+				t.Errorf("%s #%d: %v", it.filename, dctSizeScaled, err)
+				continue
+			}
+
+			goldenFileName := fmt.Sprintf("%s/%s#%d.png", filepath.Dir(it.goldenFilename), filepath.Base(it.goldenFilename),
+				dctSizeScaled)
+
+			g, err := decodeStd(goldenFileName)
+			if err != nil {
+				t.Errorf("decodeStd %s: %v", it.goldenFilename, err)
+				continue
+			}
+
+			b := g.Bounds()
+			if !b.Eq(m.Bounds()) {
+				t.Errorf("%s #%d: got bounds %v want %v", it.filename, dctSizeScaled, m.Bounds(), b)
+				continue
+			}
+
+			for y := b.Min.Y; y < b.Max.Y; y++ {
+				for x := b.Min.X; x < b.Max.X; x++ {
+					if !withinTolerance(g.At(x, y), m.At(x, y), 1<<8) {
+						t.Errorf("%s #%d: at (%d, %d):\ngot  %v\nwant %v",
+							it.filename, dctSizeScaled, x, y, rgba(m.At(x, y)), rgba(g.At(x, y)))
+						continue loop
+					}
+				}
+			}
+
+			c, _, err := decodeConfig(it.filename)
+			if err != nil {
+				t.Errorf("%s: %v", it.filename, err)
+				continue
+			}
+			if m.ColorModel() != c.ColorModel {
+				t.Errorf("%s #%d: color models differ", it.filename, dctSizeScaled)
+				continue
+			}
+		}
+	}
+}
+
+func decodeJpegScaled(filename string, dctSizeScaled int) (image.Image, error) {
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	defer f.Close()
-	return image.Decode(bufio.NewReader(f))
+	return jpeg.DecodeScaled(bufio.NewReader(f), dctSizeScaled)
+}
+
+func decodeStd(filename string) (image.Image, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	im, _, err := image.Decode(bufio.NewReader(f))
+	return im, err
 }
 
 func decodeConfig(filename string) (image.Config, string, error) {
@@ -71,58 +148,7 @@ func withinTolerance(c0, c1 color.Color, tolerance int) bool {
 	return r <= tolerance && g <= tolerance && b <= tolerance && a <= tolerance
 }
 
-func TestDecode(t *testing.T) {
-	rgba := func(c color.Color) string {
-		r, g, b, a := c.RGBA()
-		return fmt.Sprintf("rgba = 0x%04x, 0x%04x, 0x%04x, 0x%04x for %T%v", r, g, b, a, c, c)
-	}
-
-	golden := make(map[string]image.Image)
-loop:
-	for _, it := range imageTests {
-		g := golden[it.goldenFilename]
-		if g == nil {
-			var err error
-			g, _, err = decode(it.goldenFilename)
-			if err != nil {
-				t.Errorf("%s: %v", it.goldenFilename, err)
-				continue loop
-			}
-			golden[it.goldenFilename] = g
-		}
-		m, imageFormat, err := decode(it.filename)
-		if err != nil {
-			t.Errorf("%s: %v", it.filename, err)
-			continue loop
-		}
-		b := g.Bounds()
-		if !b.Eq(m.Bounds()) {
-			t.Errorf("%s: got bounds %v want %v", it.filename, m.Bounds(), b)
-			continue loop
-		}
-		for y := b.Min.Y; y < b.Max.Y; y++ {
-			for x := b.Min.X; x < b.Max.X; x++ {
-				if !withinTolerance(g.At(x, y), m.At(x, y), it.tolerance) {
-					t.Errorf("%s: at (%d, %d):\ngot  %v\nwant %v",
-						it.filename, x, y, rgba(m.At(x, y)), rgba(g.At(x, y)))
-					continue loop
-				}
-			}
-		}
-		if imageFormat == "gif" {
-			// Each frame of a GIF can have a frame-local palette override the
-			// GIF-global palette. Thus, image.Decode can yield a different ColorModel
-			// than image.DecodeConfig.
-			continue
-		}
-		c, _, err := decodeConfig(it.filename)
-		if err != nil {
-			t.Errorf("%s: %v", it.filename, err)
-			continue loop
-		}
-		if m.ColorModel() != c.ColorModel {
-			t.Errorf("%s: color models differ", it.filename)
-			continue loop
-		}
-	}
+func rgba(c color.Color) string {
+	r, g, b, a := c.RGBA()
+	return fmt.Sprintf("rgba = 0x%04x, 0x%04x, 0x%04x, 0x%04x for %T%v", r, g, b, a, c, c)
 }

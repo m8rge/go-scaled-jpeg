@@ -871,7 +871,7 @@ func jpeg_idct_2x2(src, qt *block) {
 	outptr[1] = range_limit(IRIGHT_SHIFT(tmp0-tmp1, 3))
 
 	/* Row 1 */
-	outptr = src[1:]
+	outptr = src[2:]
 
 	outptr[0] = range_limit(IRIGHT_SHIFT(tmp2+tmp3, 3))
 	outptr[1] = range_limit(IRIGHT_SHIFT(tmp2-tmp3, 3))
