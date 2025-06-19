@@ -83,6 +83,9 @@ const (
 var range_limit_table = prepareRangeLimitTable()
 
 func range_limit(x int32) int32 {
+	if (CENTERJSAMPLE + x) > RANGE_MASK {
+		return MAXJSAMPLE
+	}
 	return int32(range_limit_table[(CENTERJSAMPLE+x)&RANGE_MASK])
 }
 

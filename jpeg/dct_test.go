@@ -61,25 +61,34 @@ func TestDCT(t *testing.T) {
 		}
 	}
 
-	// Check that the optimized and slow FDCT implementations agree.
-	// The fdct function already does a scale and level shift.
-	for i, b := range blocks {
-		got, want := b, b
-		fdct(&got)
-		for j := range want {
-			want[j] = (want[j] - 128) * 8
-		}
-		slowFDCT(&want)
-		if differ(&got, &want) {
-			t.Errorf("i=%d: FDCT\nsrc\n%s\ngot\n%s\nwant\n%s\n", i, &b, &got, &want)
-		}
-	}
-
-	// Check that the optimized and slow IDCT implementations agree.
+	// Check that the original idct in image package and slow IDCT implementations agree.
 	for i, b := range blocks {
 		got, want := b, b
 		idct(&got)
 		slowIDCT(&want)
+		if differ(&got, &want) {
+			t.Errorf("i=%d: IDCT\nsrc\n%s\ngot\n%s\nwant\n%s\n", i, &b, &got, &want)
+		}
+	}
+
+	qt := &block{}
+	for i := range qt {
+		qt[i] = 1
+	}
+	// Check that the 8x8 IDCT and slow IDCT implementations agree.
+	for i, b := range blocks {
+		got, want := b, b
+		idct_slow(&got, qt)
+		slowIDCT(&want)
+		for i := 0; i < len(want); i++ {
+			if want[i] < -128 {
+				want[i] = 0
+			} else if want[i] > 127 {
+				want[i] = 255
+			} else {
+				want[i] += 128
+			}
+		}
 		if differ(&got, &want) {
 			t.Errorf("i=%d: IDCT\nsrc\n%s\ngot\n%s\nwant\n%s\n", i, &b, &got, &want)
 		}
