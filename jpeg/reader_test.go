@@ -621,7 +621,7 @@ func benchmarkDecode(b *testing.B, filename string) {
 	}
 	for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
 		b.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(b *testing.B) {
-			b.SetBytes(int64(cfg.Width * cfg.Height * 4 * DCTSIZE / dctScaledSize))
+			b.SetBytes(int64(cfg.Width * cfg.Height * 4 * DCTSIZE))
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
@@ -631,12 +631,39 @@ func benchmarkDecode(b *testing.B, filename string) {
 	}
 }
 
+func benchmarkDecodeOptimized(b *testing.B, filename string) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		b.Fatal(err)
+	}
+	cfg, err := jpeg.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.SetBytes(int64(cfg.Width * cfg.Height * 4 * DCTSIZE))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = jpeg.Decode(bytes.NewReader(data))
+	}
+}
+
 func BenchmarkDecodeBaseline(b *testing.B) {
-	benchmarkDecode(b, "../testdata/video-001.jpeg")
+	b.Run("scaled", func(b *testing.B) {
+		benchmarkDecode(b, "../testdata/video-001.jpeg")
+	})
+	b.Run("optimized", func(b *testing.B) {
+		benchmarkDecodeOptimized(b, "../testdata/video-001.jpeg")
+	})
 }
 
 func BenchmarkDecodeProgressive(b *testing.B) {
-	benchmarkDecode(b, "../testdata/video-001.progressive.jpeg")
+	b.Run("scaled", func(b *testing.B) {
+		benchmarkDecode(b, "../testdata/video-001.progressive.jpeg")
+	})
+	b.Run("optimized", func(b *testing.B) {
+		benchmarkDecodeOptimized(b, "../testdata/video-001.progressive.jpeg")
+	})
 }
 
 // averageDelta returns the average delta in RGB space. The two images must
