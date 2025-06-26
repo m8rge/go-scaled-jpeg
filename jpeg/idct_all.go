@@ -1,6 +1,6 @@
 package jpeg
 
-// This is a Go translation of jidctint.c from
+// This is a partial Go translation of jidctint.c from
 //
 // https://www.ijg.org/files/jpegsrc.v9f.tar.gz
 //
