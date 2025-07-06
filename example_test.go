@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-
-	"github.com/m8rge/go-scaled-jpeg/jpeg"
 )
 
 func Example() {
@@ -24,7 +22,7 @@ func Example() {
 	// defer reader.Close()
 	reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(data))
 	// DCTSizeScaled allowed from 8 to 1: 8 is 100% size, 4 is 50%, 1 is 1/8 of original size
-	m, err := jpeg.Decode(reader, 4)
+	m, err := Decode(reader, 4)
 	if err != nil {
 		log.Fatal(err)
 	}

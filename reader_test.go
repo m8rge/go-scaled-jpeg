@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package jpeg
+package jpegscaled
 
 import (
 	"bytes"
@@ -26,16 +26,16 @@ import (
 // space for color images, and Y space for grayscale images.
 func TestDecodeProgressive(t *testing.T) {
 	testCases := []string{
-		"../testdata/video-001",
-		"../testdata/video-001.q50.410",
-		"../testdata/video-001.q50.411",
-		"../testdata/video-001.q50.420",
-		"../testdata/video-001.q50.422",
-		"../testdata/video-001.q50.440",
-		"../testdata/video-001.q50.444",
-		"../testdata/video-005.gray.q50",
-		"../testdata/video-005.gray.q50.2x2",
-		"../testdata/video-001.separate.dc.progression",
+		"testdata/video-001",
+		"testdata/video-001.q50.410",
+		"testdata/video-001.q50.411",
+		"testdata/video-001.q50.420",
+		"testdata/video-001.q50.422",
+		"testdata/video-001.q50.440",
+		"testdata/video-001.q50.444",
+		"testdata/video-005.gray.q50",
+		"testdata/video-005.gray.q50.2x2",
+		"testdata/video-001.separate.dc.progression",
 	}
 	for dctScaledSize := DCTSIZE; dctScaledSize > 0; dctScaledSize-- {
 		t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
@@ -153,7 +153,7 @@ func TestDecodeEOF(t *testing.T) {
 
 func testDecodeEOF(t *testing.T, dctScaledSize int) {
 	// Check that if reader returns final data and EOF at same time, jpeg handles it.
-	data, err := os.ReadFile("../testdata/video-001.jpeg")
+	data, err := os.ReadFile("testdata/video-001.jpeg")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func TestTruncatedSOSDataDoesntPanic(t *testing.T) {
 }
 
 func testTruncatedSOSDataDoesntPanic(t *testing.T, dctScaledSize int) {
-	b, err := os.ReadFile("../testdata/video-005.gray.q50.jpeg")
+	b, err := os.ReadFile("testdata/video-005.gray.q50.jpeg")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -547,7 +547,7 @@ func TestExtraneousData(t *testing.T) {
 }
 
 func TestIssue56724(t *testing.T) {
-	b, err := os.ReadFile("../testdata/video-001.jpeg")
+	b, err := os.ReadFile("testdata/video-001.jpeg")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -565,7 +565,7 @@ func TestIssue56724(t *testing.T) {
 }
 
 func TestBadRestartMarker(t *testing.T) {
-	b, err := os.ReadFile("../testdata/video-001.restart2.jpeg")
+	b, err := os.ReadFile("testdata/video-001.restart2.jpeg")
 	if err != nil {
 		t.Fatal(err)
 	} else if len(b) != 4855 {
@@ -650,19 +650,19 @@ func benchmarkDecodeOptimized(b *testing.B, filename string) {
 
 func BenchmarkDecodeBaseline(b *testing.B) {
 	b.Run("scaled", func(b *testing.B) {
-		benchmarkDecode(b, "../testdata/video-001.jpeg")
+		benchmarkDecode(b, "testdata/video-001.jpeg")
 	})
 	b.Run("optimized", func(b *testing.B) {
-		benchmarkDecodeOptimized(b, "../testdata/video-001.jpeg")
+		benchmarkDecodeOptimized(b, "testdata/video-001.jpeg")
 	})
 }
 
 func BenchmarkDecodeProgressive(b *testing.B) {
 	b.Run("scaled", func(b *testing.B) {
-		benchmarkDecode(b, "../testdata/video-001.progressive.jpeg")
+		benchmarkDecode(b, "testdata/video-001.progressive.jpeg")
 	})
 	b.Run("optimized", func(b *testing.B) {
-		benchmarkDecodeOptimized(b, "../testdata/video-001.progressive.jpeg")
+		benchmarkDecodeOptimized(b, "testdata/video-001.progressive.jpeg")
 	})
 }
 

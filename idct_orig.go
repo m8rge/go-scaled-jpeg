@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package jpeg
+package jpegscaled
 
 // This is a Go translation of idct.c from
 //
@@ -36,11 +36,6 @@ package jpeg
  * design.
  *
  */
-
-const blockSize = 64 // A DCT block is 8x8.
-
-type block [blockSize]int32
-
 const (
 	w1 = 2841 // 2048*sqrt(2)*cos(1*pi/16)
 	w2 = 2676 // 2048*sqrt(2)*cos(2*pi/16)

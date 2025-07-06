@@ -14,8 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/m8rge/go-scaled-jpeg/jpeg"
 )
 
 type imageTest struct {
@@ -57,7 +55,7 @@ var imageTests = []imageTest{
 func TestDecode(t *testing.T) {
 	for _, it := range imageTests {
 	loop:
-		for dctSizeScaled := jpeg.DCTSIZE; dctSizeScaled > 0; dctSizeScaled-- {
+		for dctSizeScaled := DCTSIZE; dctSizeScaled > 0; dctSizeScaled-- {
 			m, err := decodeJpegScaled(it.filename, dctSizeScaled)
 			if err != nil {
 				t.Errorf("%s #%d: %v", it.filename, dctSizeScaled, err)
@@ -108,7 +106,7 @@ func decodeJpegScaled(filename string, dctSizeScaled int) (image.Image, error) {
 		return nil, err
 	}
 	defer f.Close()
-	return jpeg.Decode(bufio.NewReader(f), dctSizeScaled)
+	return Decode(bufio.NewReader(f), dctSizeScaled)
 }
 
 func decodeStd(filename string) (image.Image, error) {
@@ -130,21 +128,13 @@ func decodeConfig(filename string) (image.Config, string, error) {
 	return image.DecodeConfig(bufio.NewReader(f))
 }
 
-func delta(u0, u1 uint32) int {
-	d := int(u0) - int(u1)
-	if d < 0 {
-		return -d
-	}
-	return d
-}
-
 func withinTolerance(c0, c1 color.Color, tolerance int) bool {
 	r0, g0, b0, a0 := c0.RGBA()
 	r1, g1, b1, a1 := c1.RGBA()
-	r := delta(r0, r1)
-	g := delta(g0, g1)
-	b := delta(b0, b1)
-	a := delta(a0, a1)
+	r := int(delta(r0, r1))
+	g := int(delta(g0, g1))
+	b := int(delta(b0, b1))
+	a := int(delta(a0, a1))
 	return r <= tolerance && g <= tolerance && b <= tolerance && a <= tolerance
 }
 

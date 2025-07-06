@@ -1,4 +1,4 @@
-package jpeg
+package jpegscaled
 
 // This is a partial Go translation of jidctint.c from
 //
@@ -55,6 +55,10 @@ package jpeg
  * CAUTION: We rely on the FIX() macro except for the N=1,2,4,8 cases
  * since there would be too many additional constants to pre-calculate.
  */
+
+const blockSize = 64 // A DCT block is 8x8.
+
+type block [blockSize]int32
 
 const (
 	FIX_0_298631336 = 2446
