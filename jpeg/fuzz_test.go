@@ -57,7 +57,7 @@ func FuzzDecode(f *testing.F) {
 						t.Errorf("failed to encode valid image: %s", err)
 						continue
 					}
-					img1, err := DecodeScaled(&w, dctScaledSize)
+					img1, err := Decode(&w, dctScaledSize)
 					if err != nil {
 						t.Errorf("failed to decode roundtripped image: %s", err)
 						continue

@@ -117,7 +117,7 @@ func decodeFile(filename string, dctSize int) (image.Image, error) {
 		return nil, err
 	}
 	defer f.Close()
-	return DecodeScaled(f, dctSize)
+	return Decode(f, dctSize)
 }
 
 type eofReader struct {
@@ -161,7 +161,7 @@ func testDecodeEOF(t *testing.T, dctScaledSize int) {
 	n := len(data)
 	for i := 0; i < n; {
 		r := &eofReader{data[:n-i], data[n-i:], -1}
-		_, err := DecodeScaled(r, dctScaledSize)
+		_, err := Decode(r, dctScaledSize)
 		if err != nil {
 			t.Errorf("Decode with Read() = %d, EOF: %v", r.lenAtEOF, err)
 		}
@@ -247,7 +247,7 @@ func testTruncatedSOSDataDoesntPanic(t *testing.T, dctScaledSize int) {
 		j = len(b)
 	}
 	for ; i < j; i++ {
-		_, _ = DecodeScaled(bytes.NewReader(b[:i]), dctScaledSize)
+		_, _ = Decode(bytes.NewReader(b[:i]), dctScaledSize)
 	}
 }
 
@@ -300,7 +300,7 @@ func TestLargeImageWithShortData(t *testing.T) {
 			})
 			defer timer.Stop()
 
-			_, err := DecodeScaled(strings.NewReader(input), dctScaledSize)
+			_, err := Decode(strings.NewReader(input), dctScaledSize)
 			if err == nil {
 				t.Fatalf("got nil error, want non-nil")
 			}
@@ -474,7 +474,7 @@ Sqm7JH//2Q==
 	}
 	for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
 		t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
-			if _, err = DecodeScaled(bytes.NewReader(data), dctScaledSize); err != nil {
+			if _, err = Decode(bytes.NewReader(data), dctScaledSize); err != nil {
 				t.Fatalf("Decode: %v", err)
 			}
 		})
@@ -525,7 +525,7 @@ func TestExtraneousData(t *testing.T) {
 				buf.WriteString("\xff\xd9")
 
 				// Check that we can still decode the resultant image.
-				got, err := DecodeScaled(buf, dctScaledSize)
+				got, err := Decode(buf, dctScaledSize)
 				if err != nil {
 					t.Errorf("could not decode image #%d: %v", i, err)
 					nerr++
@@ -556,7 +556,7 @@ func TestIssue56724(t *testing.T) {
 
 	for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
 		t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
-			_, err = DecodeScaled(bytes.NewReader(b), dctScaledSize)
+			_, err = Decode(bytes.NewReader(b), dctScaledSize)
 			if !errors.Is(err, io.ErrUnexpectedEOF) {
 				t.Errorf("got: %v, want: %v", err, io.ErrUnexpectedEOF)
 			}
@@ -599,7 +599,7 @@ func TestBadRestartMarker(t *testing.T) {
 		data = append(data, suffix...)
 		for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
 			t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
-				_, err := DecodeScaled(bytes.NewReader(data), dctScaledSize)
+				_, err := Decode(bytes.NewReader(data), dctScaledSize)
 				got := err == nil
 
 				if got != want {
@@ -625,7 +625,7 @@ func benchmarkDecode(b *testing.B, filename string) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_, _ = DecodeScaled(bytes.NewReader(data), dctScaledSize)
+				_, _ = Decode(bytes.NewReader(data), dctScaledSize)
 			}
 		})
 	}

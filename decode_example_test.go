@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // This example demonstrates decoding a JPEG image and examining its pixels.
-package dct_scaling_test
+package jpegscaled
 
 import (
 	"encoding/base64"
@@ -11,7 +11,7 @@ import (
 	"log"
 	"strings"
 
-	"dct-scaling/jpeg"
+	"github.com/m8rge/go-scaled-jpeg/jpeg"
 )
 
 func Example() {
@@ -23,8 +23,8 @@ func Example() {
 	// }
 	// defer reader.Close()
 	reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(data))
-	// DCTSizeScaled allowed from 8 to 1. 8 is 100% size, 4 is 50%, 1 is 1/8 of original size
-	m, err := jpeg.DecodeScaled(reader, 4)
+	// DCTSizeScaled allowed from 8 to 1: 8 is 100% size, 4 is 50%, 1 is 1/8 of original size
+	m, err := jpeg.Decode(reader, 4)
 	if err != nil {
 		log.Fatal(err)
 	}

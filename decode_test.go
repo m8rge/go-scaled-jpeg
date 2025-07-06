@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package dct_scaling_test
+package jpegscaled
 
 import (
 	"bufio"
@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"dct-scaling/jpeg"
+	"github.com/m8rge/go-scaled-jpeg/jpeg"
 )
 
 type imageTest struct {
@@ -108,7 +108,7 @@ func decodeJpegScaled(filename string, dctSizeScaled int) (image.Image, error) {
 		return nil, err
 	}
 	defer f.Close()
-	return jpeg.DecodeScaled(bufio.NewReader(f), dctSizeScaled)
+	return jpeg.Decode(bufio.NewReader(f), dctSizeScaled)
 }
 
 func decodeStd(filename string) (image.Image, error) {

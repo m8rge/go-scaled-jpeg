@@ -11,7 +11,7 @@ import (
 	"image"
 	"io"
 
-	"dct-scaling/internal/imageutil"
+	"github.com/m8rge/go-scaled-jpeg/internal/imageutil"
 )
 
 // A FormatError reports that the input is not a valid JPEG.
@@ -768,8 +768,9 @@ func (d *decoder) convertToRGB() (image.Image, error) {
 	return img, nil
 }
 
-// DecodeScaled reads a JPEG image from r and returns it as an [image.Image].
-func DecodeScaled(r io.Reader, DCTSizeScaled int) (image.Image, error) {
+// Decode reads a JPEG image from r and returns it as an [image.Image].
+// DCTSizeScaled allowed from 8 to 1. 8 is 100% size, 4 is 50%, 1 is 1/8 of original size.
+func Decode(r io.Reader, DCTSizeScaled int) (image.Image, error) {
 	d := decoder{
 		dctSizeScaled: DCTSizeScaled,
 	}
