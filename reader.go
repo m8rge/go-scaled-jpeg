@@ -9,10 +9,24 @@ package jpegscaled
 
 import (
 	"image"
+	"image/color"
 	"io"
 
 	"github.com/m8rge/go-scaled-jpeg/internal/imageutil"
 )
+
+type JpegType int8
+
+const (
+	JpegTypeUnsupported JpegType = 0
+	JpegTypeBaseline    JpegType = 1
+	JpegTypeProgressive JpegType = 2
+)
+
+type Config struct {
+	image.Config
+	JpegType JpegType
+}
 
 // A FormatError reports that the input is not a valid JPEG.
 type FormatError string
@@ -775,4 +789,55 @@ func Decode(r io.Reader, DCTSizeScaled int) (image.Image, error) {
 		dctSizeScaled: DCTSizeScaled,
 	}
 	return d.decode(r, false)
+}
+
+// DecodeConfig returns jpeg type (Baseline, Progressive), the color model and dimensions of a JPEG image without
+// decoding the entire image.
+func DecodeConfig(r io.Reader) (Config, error) {
+	var d decoder
+	if _, err := d.decode(r, true); err != nil {
+		return Config{}, err
+	}
+
+	jpegType := JpegTypeUnsupported
+	if d.baseline {
+		jpegType = JpegTypeBaseline
+	} else if d.progressive {
+		jpegType = JpegTypeProgressive
+	}
+
+	switch d.nComp {
+	case 1:
+		return Config{
+			Config: image.Config{
+				ColorModel: color.GrayModel,
+				Width:      d.width,
+				Height:     d.height,
+			},
+			JpegType: jpegType,
+		}, nil
+	case 3:
+		cm := color.YCbCrModel
+		if d.isRGB() {
+			cm = color.RGBAModel
+		}
+		return Config{
+			Config: image.Config{
+				ColorModel: cm,
+				Width:      d.width,
+				Height:     d.height,
+			},
+			JpegType: jpegType,
+		}, nil
+	case 4:
+		return Config{
+			Config: image.Config{
+				ColorModel: color.CMYKModel,
+				Width:      d.width,
+				Height:     d.height,
+			},
+			JpegType: jpegType,
+		}, nil
+	}
+	return Config{}, FormatError("missing SOF marker")
 }

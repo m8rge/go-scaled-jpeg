@@ -13,6 +13,7 @@ import (
 	_ "image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -87,13 +88,21 @@ func TestDecode(t *testing.T) {
 				}
 			}
 
-			c, _, err := decodeConfig(it.filename)
+			c, err := decodeConfig(it.filename)
 			if err != nil {
 				t.Errorf("%s: %v", it.filename, err)
 				continue
 			}
 			if m.ColorModel() != c.ColorModel {
 				t.Errorf("%s #%d: color models differ", it.filename, dctSizeScaled)
+				continue
+			}
+			expectedJpegType := JpegTypeBaseline
+			if strings.Contains(it.filename, ".progressive.") || strings.Contains(it.filename, ".progression.") {
+				expectedJpegType = JpegTypeProgressive
+			}
+			if c.JpegType != expectedJpegType {
+				t.Errorf("%s: JpegType expected %v, actual %v", it.filename, expectedJpegType, c.JpegType)
 				continue
 			}
 		}
@@ -119,13 +128,14 @@ func decodeStd(filename string) (image.Image, error) {
 	return im, err
 }
 
-func decodeConfig(filename string) (image.Config, string, error) {
+func decodeConfig(filename string) (Config, error) {
 	f, err := os.Open(filename)
 	if err != nil {
-		return image.Config{}, "", err
+		return Config{}, err
 	}
 	defer f.Close()
-	return image.DecodeConfig(bufio.NewReader(f))
+
+	return DecodeConfig(bufio.NewReader(f))
 }
 
 func withinTolerance(c0, c1 color.Color, tolerance int) bool {
