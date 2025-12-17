@@ -117,7 +117,7 @@ func decodeFile(filename string, dctSize int) (image.Image, error) {
 		return nil, err
 	}
 	defer f.Close()
-	return Decode(f, dctSize)
+	return Decode(f, DecodeOptions{DCTSizeScaled: dctSize})
 }
 
 type eofReader struct {
@@ -161,7 +161,7 @@ func testDecodeEOF(t *testing.T, dctScaledSize int) {
 	n := len(data)
 	for i := 0; i < n; {
 		r := &eofReader{data[:n-i], data[n-i:], -1}
-		_, err := Decode(r, dctScaledSize)
+		_, err := Decode(r, DecodeOptions{DCTSizeScaled: dctScaledSize})
 		if err != nil {
 			t.Errorf("Decode with Read() = %d, EOF: %v", r.lenAtEOF, err)
 		}
@@ -247,7 +247,7 @@ func testTruncatedSOSDataDoesntPanic(t *testing.T, dctScaledSize int) {
 		j = len(b)
 	}
 	for ; i < j; i++ {
-		_, _ = Decode(bytes.NewReader(b[:i]), dctScaledSize)
+		_, _ = Decode(bytes.NewReader(b[:i]), DecodeOptions{DCTSizeScaled: dctScaledSize})
 	}
 }
 
@@ -300,7 +300,7 @@ func TestLargeImageWithShortData(t *testing.T) {
 			})
 			defer timer.Stop()
 
-			_, err := Decode(strings.NewReader(input), dctScaledSize)
+			_, err := Decode(strings.NewReader(input), DecodeOptions{DCTSizeScaled: dctScaledSize})
 			if err == nil {
 				t.Fatalf("got nil error, want non-nil")
 			}
@@ -474,7 +474,7 @@ Sqm7JH//2Q==
 	}
 	for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
 		t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
-			if _, err = Decode(bytes.NewReader(data), dctScaledSize); err != nil {
+			if _, err = Decode(bytes.NewReader(data), DecodeOptions{DCTSizeScaled: dctScaledSize}); err != nil {
 				t.Fatalf("Decode: %v", err)
 			}
 		})
@@ -525,7 +525,7 @@ func TestExtraneousData(t *testing.T) {
 				buf.WriteString("\xff\xd9")
 
 				// Check that we can still decode the resultant image.
-				got, err := Decode(buf, dctScaledSize)
+				got, err := Decode(buf, DecodeOptions{DCTSizeScaled: dctScaledSize})
 				if err != nil {
 					t.Errorf("could not decode image #%d: %v", i, err)
 					nerr++
@@ -556,7 +556,7 @@ func TestIssue56724(t *testing.T) {
 
 	for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
 		t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
-			_, err = Decode(bytes.NewReader(b), dctScaledSize)
+			_, err = Decode(bytes.NewReader(b), DecodeOptions{DCTSizeScaled: dctScaledSize})
 			if !errors.Is(err, io.ErrUnexpectedEOF) {
 				t.Errorf("got: %v, want: %v", err, io.ErrUnexpectedEOF)
 			}
@@ -599,7 +599,7 @@ func TestBadRestartMarker(t *testing.T) {
 		data = append(data, suffix...)
 		for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
 			t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
-				_, err := Decode(bytes.NewReader(data), dctScaledSize)
+				_, err := Decode(bytes.NewReader(data), DecodeOptions{DCTSizeScaled: dctScaledSize})
 				got := err == nil
 
 				if got != want {
@@ -625,7 +625,7 @@ func benchmarkDecode(b *testing.B, filename string) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_, _ = Decode(bytes.NewReader(data), dctScaledSize)
+				_, _ = Decode(bytes.NewReader(data), DecodeOptions{DCTSizeScaled: dctScaledSize})
 			}
 		})
 	}
@@ -692,4 +692,47 @@ func delta(u0, u1 uint32) int64 {
 		return -d
 	}
 	return d
+}
+
+func TestDecodeTolerant(t *testing.T) {
+	b, err := os.ReadFile("testdata/video-001.jpeg")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	truncPoints := []int{len(b) - 100, len(b) - 50, len(b) - 10}
+
+	for dctScaledSize := 1; dctScaledSize <= DCTSIZE; dctScaledSize++ {
+		t.Run(fmt.Sprintf("dct size %d", dctScaledSize), func(t *testing.T) {
+			for _, truncLen := range truncPoints {
+				truncated := b[:truncLen]
+
+				// Without tolerant mode, should fail
+				_, err = Decode(bytes.NewReader(truncated), DecodeOptions{
+					DCTSizeScaled: dctScaledSize,
+					Tolerant:      false,
+				})
+				if err == nil {
+					t.Errorf("truncate at %d: expected error without tolerant mode", truncLen)
+				}
+
+				// With tolerant mode, should succeed
+				img, err := Decode(bytes.NewReader(truncated), DecodeOptions{
+					DCTSizeScaled: dctScaledSize,
+					Tolerant:      true,
+				})
+				if err != nil {
+					t.Errorf("truncate at %d: tolerant mode failed: %v", truncLen, err)
+				}
+				if img == nil {
+					t.Fatalf("truncate at %d: got nil image without error", truncLen)
+				}
+
+				bounds := img.Bounds()
+				if bounds.Dx() <= 0 || bounds.Dy() <= 0 {
+					t.Errorf("truncate at %d: invalid bounds: %v", truncLen, bounds)
+				}
+			}
+		})
+	}
 }
