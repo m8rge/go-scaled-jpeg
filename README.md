@@ -8,6 +8,7 @@ This library combines Go's standard `image/jpeg` infrastructure with a translate
 
 - JPEG decoding at reduced resolutions (1/8, 1/4, 1/2, full)
 - Scalable via `DCTSizeScaled` (1–8)
+- Tolerant mode to decode incomplete images without failing
 - Based on Go standard library and IJG's reference implementation
 
 ## Installation
