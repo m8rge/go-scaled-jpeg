@@ -794,7 +794,7 @@ func (d *decoder) convertToRGB() (image.Image, error) {
 
 // DecodeOptions specifies JPEG decoding parameters.
 type DecodeOptions struct {
-	// DCTSizeScaled controls output resolution: 8 (full), 4 (1/2), 2 (1/4), 1 (1/8).
+	// DCTSizeScaled allowed from 8 to 1. 8 is 100% size, 4 is 50%, 1 is 1/8 of original size.
 	DCTSizeScaled int
 	// Tolerant enables lenient decoding of truncated or malformed images.
 	Tolerant bool
