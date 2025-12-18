@@ -8,6 +8,7 @@
 package jpegscaled
 
 import (
+	"errors"
 	"image"
 	"image/color"
 	"io"
@@ -160,6 +161,9 @@ type decoder struct {
 	huff       [maxTc + 1][maxTh + 1]huffman
 	quant      [maxTq + 1]block // Quantization tables, in zig-zag order.
 	tmp        [2 * blockSize]byte
+
+	// tolerant allows decoding of truncated or slightly malformed images.
+	tolerant bool
 }
 
 // fill fills up the d.bytes.buf buffer from the underlying io.Reader. It
@@ -547,6 +551,9 @@ func (d *decoder) decode(r io.Reader, configOnly bool) (image.Image, error) {
 	for {
 		err := d.readFull(d.tmp[:2])
 		if err != nil {
+			if d.tolerant && errors.Is(err, io.ErrUnexpectedEOF) {
+				break
+			}
 			return nil, err
 		}
 		for d.tmp[0] != 0xff {
@@ -657,6 +664,9 @@ func (d *decoder) decode(r io.Reader, configOnly bool) (image.Image, error) {
 			}
 		}
 		if err != nil {
+			if d.tolerant && errors.Is(err, errShortHuffmanData) {
+				continue
+			}
 			return nil, err
 		}
 	}
@@ -782,11 +792,19 @@ func (d *decoder) convertToRGB() (image.Image, error) {
 	return img, nil
 }
 
+// DecodeOptions specifies JPEG decoding parameters.
+type DecodeOptions struct {
+	// DCTSizeScaled allowed from 8 to 1. 8 is 100% size, 4 is 50%, 1 is 1/8 of original size.
+	DCTSizeScaled int
+	// Tolerant enables lenient decoding of truncated or malformed images.
+	Tolerant bool
+}
+
 // Decode reads a JPEG image from r and returns it as an [image.Image].
-// DCTSizeScaled allowed from 8 to 1. 8 is 100% size, 4 is 50%, 1 is 1/8 of original size.
-func Decode(r io.Reader, DCTSizeScaled int) (image.Image, error) {
+func Decode(r io.Reader, opts DecodeOptions) (image.Image, error) {
 	d := decoder{
-		dctSizeScaled: DCTSizeScaled,
+		dctSizeScaled: opts.DCTSizeScaled,
+		tolerant:      opts.Tolerant,
 	}
 	return d.decode(r, false)
 }

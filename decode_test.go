@@ -115,7 +115,7 @@ func decodeJpegScaled(filename string, dctSizeScaled int) (image.Image, error) {
 		return nil, err
 	}
 	defer f.Close()
-	return Decode(bufio.NewReader(f), dctSizeScaled)
+	return Decode(bufio.NewReader(f), DecodeOptions{DCTSizeScaled: dctSizeScaled})
 }
 
 func decodeStd(filename string) (image.Image, error) {
